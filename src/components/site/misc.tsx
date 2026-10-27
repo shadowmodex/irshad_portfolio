@@ -156,6 +156,7 @@ interface ContactFormData {
   email: string;
   subject: string;
   message: string;
+  company: string; // Honeypot field (hidden from legitimate users)
 }
 
 const initialFormData: ContactFormData = {
@@ -163,7 +164,39 @@ const initialFormData: ContactFormData = {
   email: "",
   subject: "",
   message: "",
+  company: "",
 };
+
+/**
+ * Defensive spam and abuse controls:
+ * 1. Honeypot field (`company`): Traps automated spambots that blindly fill all form inputs.
+ * 2. Client-side cooldown (30s): Enforces a minimum interval between submissions from the same browser.
+ *
+ * NOTE: Client-side controls provide friction against automated bots and casual abuse,
+ * but do not replace true server-side rate limiting. For robust protection, configure
+ * Allowed Domains and CAPTCHA in the EmailJS dashboard.
+ */
+const SUBMISSION_COOLDOWN_MS = 30 * 1000;
+const COOLDOWN_STORAGE_KEY = "portfolio_contact_last_sent";
+
+function getLastSentTimestamp(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(COOLDOWN_STORAGE_KEY);
+    return raw ? Number(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setLastSentTimestamp(timestamp: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(COOLDOWN_STORAGE_KEY, String(timestamp));
+  } catch {
+    // Ignore storage quota/permission exceptions
+  }
+}
 
 export function ContactForm() {
   const [formData, setFormData] = useState<ContactFormData>(initialFormData);
@@ -176,10 +209,10 @@ export function ContactForm() {
 
   function handleChange(field: keyof ContactFormData, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
+    if (errors[field as keyof Errors]) {
       setErrors((prev) => {
         const next = { ...prev };
-        delete next[field];
+        delete next[field as keyof Errors];
         return next;
       });
     }
@@ -188,6 +221,33 @@ export function ContactForm() {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (isSubmitting) return;
+
+    // Honeypot check: Bots usually populate hidden inputs
+    if (formData.company.trim().length > 0) {
+      // Silently simulate success to prevent bots from retrying without consuming EmailJS quota
+      setIsSubmitting(true);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setStatus({
+          type: "success",
+          message: "Thank you! Your message has been sent successfully. I'll get back to you soon.",
+        });
+        setFormData(initialFormData);
+        setErrors({});
+      }, 500);
+      return;
+    }
+
+    // Client-side cooldown check
+    const lastSent = getLastSentTimestamp();
+    if (lastSent && Date.now() - lastSent < SUBMISSION_COOLDOWN_MS) {
+      const remainingSeconds = Math.ceil((SUBMISSION_COOLDOWN_MS - (Date.now() - lastSent)) / 1000);
+      setStatus({
+        type: "error",
+        message: `Please wait ${remainingSeconds} seconds before sending another message.`,
+      });
+      return;
+    }
 
     const v = {
       name: formData.name.trim(),
@@ -213,6 +273,7 @@ export function ContactForm() {
 
     try {
       await sendContactEmail(v);
+      setLastSentTimestamp(Date.now());
       setStatus({
         type: "success",
         message: "Thank you! Your message has been sent successfully. I'll get back to you soon.",
@@ -246,6 +307,23 @@ export function ContactForm() {
   const field = "mt-1 w-full rounded-sm border border-ink/25 bg-paper px-3 py-2.5 text-ink placeholder:text-ink-muted/70 focus:border-forest focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed";
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      {/* Accessible Honeypot field for spam prevention (hidden from view and assistive tech) */}
+      <div
+        className="absolute -left-[9999px] opacity-0 h-0 w-0 overflow-hidden pointer-events-none"
+        aria-hidden="true"
+      >
+        <label htmlFor="contact-company">Company</label>
+        <input
+          id="contact-company"
+          name="company"
+          type="text"
+          value={formData.company}
+          onChange={(e) => handleChange("company", e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <F id="name" error={errors.name} label="Name">
           <input
