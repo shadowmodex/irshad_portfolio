@@ -112,15 +112,20 @@ export function VideoCard({ title, topic, image, url, big }: { title: string; to
   const body = (
     <>
       <div className="relative overflow-hidden rounded-sm">
-        <img src={image} alt={`Demo thumbnail for ${title}`} loading="lazy" className={cn("w-full object-cover transition-transform duration-500 group-hover:scale-105", big ? "aspect-video" : "aspect-video")} />
-        <span className="absolute inset-0 m-auto grid h-12 w-12 place-items-center rounded-full bg-yt/90 text-paper"><Play className="h-5 w-5 fill-current" /></span>
-        <span className="absolute left-2 top-2 rounded-sm bg-night/80 px-2 py-0.5 text-[10px] uppercase tracking-wider text-gold">Placeholder</span>
+        <img src={image} alt={`Thumbnail for ${title}`} loading="lazy" className="aspect-video w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <span className="absolute inset-0 m-auto grid h-12 w-12 place-items-center rounded-full bg-yt/90 text-paper transition-transform duration-300 group-hover:scale-110"><Play className="h-5 w-5 fill-current" /></span>
       </div>
       <p className="mt-2 font-hand text-lg text-gold">{topic}</p>
-      <h3 className={cn("font-display font-semibold leading-tight", big ? "text-3xl" : "text-lg")}>{title}</h3>
+      <h3 className={cn("font-display font-semibold leading-snug break-words", big ? "text-xl sm:text-2xl lg:text-3xl" : "text-base md:text-lg")}>{title}</h3>
     </>
   );
-  return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="group block">{body}</a> : <div className="group" aria-label={`${title} (video link coming soon)`}>{body}</div>;
+  return url ? (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="group block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">
+      {body}
+    </a>
+  ) : (
+    <div className="group">{body}</div>
+  );
 }
 
 export function EmptyState({ title, text, action }: { title: string; text: string; action?: ReactNode }) {

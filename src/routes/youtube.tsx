@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Youtube } from "lucide-react";
-import { videos } from "@/data/media";
+import { media, videos } from "@/data/media";
 import { socialLinks } from "@/data/socialLinks";
 import { getProject } from "@/data/projects";
-import { HandwrittenAnnotation, SectionLabel } from "@/components/site/decor";
+import { SectionLabel } from "@/components/site/decor";
 import { VideoCard } from "@/components/site/misc";
 import { ExternalAction } from "@/components/site/ActionLink";
 import { ProjectCard } from "@/components/site/cards";
@@ -29,7 +29,9 @@ function YoutubePage() {
       <div className="mx-auto max-w-6xl px-5 pb-20 pt-28 md:px-10 md:pt-36">
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-5">
-            <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-2 border-gold bg-night font-display text-3xl text-gold" role="img" aria-label="Channel avatar placeholder">SX</span>
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-gold bg-night shadow-md">
+              <img src={media.youtubeDp} alt={`${yt.handle} channel avatar`} className="h-full w-full object-cover" />
+            </div>
             <div>
               <p className="font-hand text-2xl text-gold">// on YouTube</p>
               <h1 className="font-display text-[clamp(2.1rem,9.5vw,3rem)] font-semibold md:text-7xl">{yt.handle}</h1>
@@ -43,7 +45,6 @@ function YoutubePage() {
           <h2 id="feat-h" className="sr-only">Featured video</h2>
           <VideoCard {...featured} big />
           <div className="space-y-6">{rest.map((v) => <VideoCard key={v.id} {...v} />)}</div>
-          <HandwrittenAnnotation className="absolute -top-8 right-4 hidden text-2xl text-parchment/70 sm:block" rotate={-4}>real videos coming soon</HandwrittenAnnotation>
         </section>
 
         <section className="mt-20">
