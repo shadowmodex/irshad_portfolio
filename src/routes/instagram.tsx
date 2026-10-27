@@ -119,7 +119,7 @@ function InstagramPage() {
           </div>
           <div className="mt-4 flex justify-end">
             <a
-              href={ig.url}
+              href={ig.url ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block hover:opacity-80 transition-opacity"

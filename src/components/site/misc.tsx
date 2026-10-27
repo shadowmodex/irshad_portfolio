@@ -1,9 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Github, Instagram, Mail, Play, SearchX, Youtube } from "lucide-react";
+import { ChevronRight, Github, Instagram, Loader2, Mail, Play, SearchX, Youtube } from "lucide-react";
 import { featuredTech, techStack, type Tech } from "@/data/techStack";
 import { socialLinks, type SocialKey } from "@/data/socialLinks";
-import { profile } from "@/data/profile";
+import { sendContactEmail } from "@/lib/email";
 import { btn } from "./ActionLink";
 import { cn } from "@/lib/utils";
 
@@ -151,41 +151,187 @@ function F({ id, label, error, children }: { id: string; label: string; error?: 
 
 type Errors = Partial<Record<"name" | "email" | "subject" | "message", string>>;
 
-export function ContactForm() {
-  const [errors, setErrors] = useState<Errors>({});
-  const [notice, setNotice] = useState<string | null>(null);
+interface ContactFormData {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+const initialFormData: ContactFormData = {
+  name: "",
+  email: "",
+  subject: "",
+  message: "",
+};
+
+export function ContactForm() {
+  const [formData, setFormData] = useState<ContactFormData>(initialFormData);
+  const [errors, setErrors] = useState<Errors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  function handleChange(field: keyof ContactFormData, value: string) {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const v = Object.fromEntries(["name", "email", "subject", "message"].map((k) => [k, String(f.get(k) ?? "").trim()])) as Record<keyof Errors, string>;
+    if (isSubmitting) return;
+
+    const v = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      subject: formData.subject.trim(),
+      message: formData.message.trim(),
+    };
+
     const errs: Errors = {};
     if (v.name.length < 2) errs.name = "Please enter your name.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) errs.email = "Please enter a valid email address.";
     if (v.subject.length < 3) errs.subject = "Please add a short subject.";
     if (v.message.length < 10) errs.message = "Message should be at least 10 characters.";
+
     setErrors(errs);
-    if (Object.keys(errs).length) { setNotice(null); return; }
-    if (profile.email) {
-      const body = encodeURIComponent(`${v.message}\n\n— ${v.name} (${v.email})`);
-      window.location.href = `mailto:${profile.email}?subject=${encodeURIComponent(v.subject)}&body=${body}`;
-      setNotice("Your email app should open with the message ready to send.");
-    } else {
-      setNotice("Your message looks good, but sending isn't set up yet — no message was sent. Please reach out on Instagram for now.");
+    if (Object.keys(errs).length) {
+      setStatus(null);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus(null);
+
+    try {
+      await sendContactEmail(v);
+      setStatus({
+        type: "success",
+        message: "Thank you! Your message has been sent successfully. I'll get back to you soon.",
+      });
+      setFormData(initialFormData);
+      setErrors({});
+    } catch (err: unknown) {
+      console.error("Failed to send contact message:", err);
+      if (err instanceof Error && err.message === "EMAILJS_NOT_CONFIGURED") {
+        setStatus({
+          type: "error",
+          message: "Email delivery service is not yet configured. Please configure the EmailJS environment variables (VITE_EMAILJS_*) or reach out directly at worldtech851@gmail.com.",
+        });
+      } else {
+        const errorText =
+          err && typeof err === "object" && "text" in err && typeof (err as { text?: unknown }).text === "string"
+            ? (err as { text: string }).text
+            : null;
+        setStatus({
+          type: "error",
+          message: errorText
+            ? `Email service error: ${errorText}. Please verify your credentials or try again later.`
+            : "Unable to send your message right now. Please try again in a moment or email me directly at worldtech851@gmail.com.",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  const field = "mt-1 w-full rounded-sm border border-ink/25 bg-paper px-3 py-2.5 text-ink placeholder:text-ink-muted/70 focus:border-forest focus:outline-none";
+  const field = "mt-1 w-full rounded-sm border border-ink/25 bg-paper px-3 py-2.5 text-ink placeholder:text-ink-muted/70 focus:border-forest focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed";
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <F id="name" error={errors.name} label="Name"><input id="name" name="name" autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-err" : undefined} className={field} placeholder="Your name" /></F>
-        <F id="email" error={errors.email} label="Email"><input id="email" name="email" type="email" autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "email-err" : undefined} className={field} placeholder="you@example.com" /></F>
+        <F id="name" error={errors.name} label="Name">
+          <input
+            id="name"
+            name="name"
+            autoComplete="name"
+            value={formData.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+            disabled={isSubmitting}
+            aria-invalid={!!errors.name}
+            aria-describedby={errors.name ? "name-err" : undefined}
+            className={field}
+            placeholder="Your name"
+          />
+        </F>
+        <F id="email" error={errors.email} label="Email">
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={(e) => handleChange("email", e.target.value)}
+            disabled={isSubmitting}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? "email-err" : undefined}
+            className={field}
+            placeholder="you@example.com"
+          />
+        </F>
       </div>
-      <F id="subject" error={errors.subject} label="Subject"><input id="subject" name="subject" aria-invalid={!!errors.subject} className={field} placeholder="Project idea, collaboration…" /></F>
-      <F id="message" error={errors.message} label="Message"><textarea id="message" name="message" rows={5} aria-invalid={!!errors.message} className={field} placeholder="Tell me a little about it" /></F>
-      <button type="submit" className={btn("ink")}>Send a message</button>
-      {notice && <p role="status" className="rounded-sm border-l-2 border-gold bg-beige/50 px-4 py-3 text-sm text-ink">{notice}</p>}
+      <F id="subject" error={errors.subject} label="Subject">
+        <input
+          id="subject"
+          name="subject"
+          value={formData.subject}
+          onChange={(e) => handleChange("subject", e.target.value)}
+          disabled={isSubmitting}
+          aria-invalid={!!errors.subject}
+          aria-describedby={errors.subject ? "subject-err" : undefined}
+          className={field}
+          placeholder="Project idea, collaboration…"
+        />
+      </F>
+      <F id="message" error={errors.message} label="Message">
+        <textarea
+          id="message"
+          name="message"
+          rows={5}
+          value={formData.message}
+          onChange={(e) => handleChange("message", e.target.value)}
+          disabled={isSubmitting}
+          aria-invalid={!!errors.message}
+          aria-describedby={errors.message ? "message-err" : undefined}
+          className={field}
+          placeholder="Tell me a little about it"
+        />
+      </F>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={cn(btn("ink"), "cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed")}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            Sending message…
+          </>
+        ) : (
+          "Send a message"
+        )}
+      </button>
+      {status && (
+        <p
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "rounded-sm border-l-2 px-4 py-3 text-sm text-ink",
+            status.type === "success"
+              ? "border-forest bg-forest/10"
+              : "border-destructive bg-destructive/10"
+          )}
+        >
+          {status.message}
+        </p>
+      )}
     </form>
   );
 }
